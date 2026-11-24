@@ -678,10 +678,34 @@ namespace ChoETL
             return newName.IsNullOrWhiteSpace() ? Configuration.NodeName : newName;
         }
 
+        private static void ApplyArrayItemNodeName(object value, string itemName, int depth = 0)
+        {
+            if (value == null || depth > 64)
+                return;
+
+            if (value is IDictionary<string, object> dict)
+            {
+                foreach (var v in dict.Values)
+                    ApplyArrayItemNodeName(v, itemName, depth + 1);
+            }
+            else if (value is IList list && !(value is string))
+            {
+                foreach (var item in list)
+                {
+                    if (item is ChoDynamicObject dobj)
+                        dobj.DynamicObjectName = itemName;
+                    ApplyArrayItemNodeName(item, itemName, depth + 1);
+                }
+            }
+        }
+
         private bool ToText(long index, object rec, ChoXmlRecordConfiguration config, out string recText)
         {
             if (typeof(IChoScalarObject).IsAssignableFrom(config.RecordTypeInternal) && rec != null)
                 rec = ChoActivator.CreateInstance(config.RecordTypeInternal, rec);
+
+            if (!config.ArrayItemNodeName.IsNullOrWhiteSpace() && rec is IDictionary<string, object>)
+                ApplyArrayItemNodeName(rec, config.ArrayItemNodeName.Trim());
 
             recText = null;
             if (rec == null)

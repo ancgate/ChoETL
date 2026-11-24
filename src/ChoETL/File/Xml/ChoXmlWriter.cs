@@ -886,11 +886,8 @@ namespace ChoETL
         public void Write(DataTable dt)
         {
             ChoGuard.ArgumentNotNull(dt, "DataTable");
-            if (Configuration.UseXmlSerialization)
-            {
-                Write(dt);
-                return;
-            }
+            //NOTE: this used to call Write(dt) again when UseXmlSerialization was set, which recursed until a
+            //StackOverflowException (same defect as Cinchoo/ChoETL#322). Rows are written the normal way.
 
             DataTable schemaTable = dt;
 

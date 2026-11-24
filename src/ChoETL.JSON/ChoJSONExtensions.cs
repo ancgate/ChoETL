@@ -512,6 +512,23 @@ namespace ChoETL
 
          */
 
+        private static void AddFlattenedProperties(JObject res, IEnumerable<JProperty> otherProperties, string parentNodeName,
+            string nestedKeySeparator, Func<string, string, string> nestedKeyResolver)
+        {
+            if (otherProperties == null)
+                return;
+
+            foreach (var prop in otherProperties)
+            {
+                if (!res.ContainsKey(prop.Name))
+                    res.Add(prop);
+                else if (nestedKeyResolver != null)
+                    res.Add(prop.Rename(nestedKeyResolver(parentNodeName, prop.Name)));
+                else if (!parentNodeName.IsNullOrWhiteSpace())
+                    res.Add(prop.Rename($"{parentNodeName}{nestedKeySeparator}{prop.Name}"));
+            }
+        }
+
         private static IEnumerable<JToken> GetFlattenedObjectsInternal(JToken token, IEnumerable<JProperty> otherProperties = null, string parentNodeName = null,
     string nestedKeySeparator = null, Func<string, string, string> nestedKeyResolver = null, bool useNestedKeyFormat = false,
     string arrayIndexSeparator = null,
@@ -582,10 +599,24 @@ namespace ChoETL
             }
             else if (token is JArray arr)
             {
-                foreach (var co in token.Children().SelectMany((c, index) => GetFlattenedObjects(c, otherProperties,
-                        useNestedKeyFormat ? (parentNodeName.IsNullOrWhiteSpace() ? $"{index}" : $"{parentNodeName}{nestedKeySeparator}{index}") : $"{index}",
-                        nestedKeySeparator, nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator, ignoreArrayIndex, index)))
-                    yield return co;
+                if (arr.Count > 0 && arr.Children().All(c => c is JValue))
+                {
+                    //An array of scalar values nested inside the array being flattened (e.g. "TimeRanges": [[0,24],[1,2]])
+                    //is one record holding that array, not one record per scalar (#206).
+                    var res = new JObject();
+                    AddFlattenedProperties(res, otherProperties, parentNodeName, nestedKeySeparator, nestedKeyResolver);
+                    var name = parentNodeName.IsNullOrWhiteSpace() ? "Value" : parentNodeName.ToSingular();
+                    if (!res.ContainsKey(name))
+                        res.Add(new JProperty(name, arr));
+                    yield return res;
+                }
+                else
+                {
+                    foreach (var co in token.Children().SelectMany((c, index) => GetFlattenedObjects(c, otherProperties,
+                            useNestedKeyFormat ? (parentNodeName.IsNullOrWhiteSpace() ? $"{index}" : $"{parentNodeName}{nestedKeySeparator}{index}") : $"{index}",
+                            nestedKeySeparator, nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator, ignoreArrayIndex, index)))
+                        yield return co;
+                }
             }
             else if (token is JValue && arrayIndex != null)
             {

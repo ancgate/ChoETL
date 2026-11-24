@@ -1254,9 +1254,20 @@ namespace ChoETL
 
             //XmlSerializer serializer = overrides != null ? new XmlSerializer(type, overrides) : new XmlSerializer(type);
             XmlSerializer serializer = ChoUtility.GetXmlSerializerWithOverrides(type, overrides);
-            if (unknownNode != null)
-                serializer.UnknownNode += unknownNode;
-            return serializer.Deserialize(new XmlNodeReader(node));
+            if (unknownNode == null)
+                return serializer.Deserialize(new XmlNodeReader(node));
+
+            //The serializer is cached and shared, so attach the handler only for this call (#131):
+            //adding it permanently grew the handler list on every call.
+            serializer.UnknownNode += unknownNode;
+            try
+            {
+                return serializer.Deserialize(new XmlNodeReader(node));
+            }
+            finally
+            {
+                serializer.UnknownNode -= unknownNode;
+            }
         }
 
         public static StreamReader ToStreamReader(this string source)

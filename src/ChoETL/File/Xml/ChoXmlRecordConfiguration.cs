@@ -272,6 +272,13 @@ namespace ChoETL
 
         internal ChoXmlNamespaceTable XmlNamespaceTable { get; set; }
         public bool? UseXmlArray { get; set; }
+        /// <summary>
+        /// Element name used for object items inside arrays when writing dynamic records
+        /// (e.g. JSON converted to XML). When empty (default), the item name is derived from
+        /// the collection name (phones -> phone). Set to e.g. "item" to emit
+        /// &lt;phones&gt;&lt;item&gt;...&lt;/item&gt;&lt;/phones&gt; for every array (#316).
+        /// </summary>
+        public string ArrayItemNodeName { get; set; }
         public bool UseJsonNamespaceForObjectType { get; set; }
         public XmlNodeEventHandler UnknownNode { get; set; }
         public bool IgnoreNSPrefix { get; set; }
