@@ -191,14 +191,14 @@
         }
       },
       {
-        "Id": 0,
+        "Id": null,
         "Name": null,
         "Cities": [
           null,
           null
         ],
         "Baz": {
-          "Id": 0,
+          "Id": null,
           "Name": null,
           "Cities": [
             null

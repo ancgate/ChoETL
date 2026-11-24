@@ -1615,7 +1615,14 @@ namespace ChoETL
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            //Nested objects can't be stored in a flat parquet column. They used to fail with
+            //NotImplementedException; write them as JSON text instead. Use UseNestedKeyFormat(true)
+            //to flatten them into separate columns.
+            if (value == null)
+                return null;
+            if (targetType == null || targetType == typeof(string) || targetType == typeof(object) || !targetType.IsInstanceOfType(value))
+                return Newtonsoft.Json.JsonConvert.SerializeObject(value);
+            return value;
         }
     }
 }

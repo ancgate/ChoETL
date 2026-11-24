@@ -148,7 +148,7 @@ namespace ChoETL
                 {
                     foreach (KeyValuePair<string, ChoParquetRecordFieldConfiguration> kvp in Configuration.RecordFieldConfigurationsDict.OrderBy(kvp => kvp.Value.Priority))
                     {
-                        var column = new DataColumn(sf[kvp.Key], Cast(GetFieldValues(kvp.Key, kvp.Value.FieldType), GetParquetType(kvp.Value.FieldType, true)));
+                        var column = new DataColumn(sf[kvp.Key], Cast(GetFieldValues(kvp.Key, kvp.Value.FieldType), GetColumnType(kvp.Key, kvp.Value.FieldType)));
                         ChoAsyncHelper.RunSync(() => groupWriter.WriteColumnAsync(column));
                     }
                 }
@@ -233,10 +233,15 @@ namespace ChoETL
             if (underlyingType == null)
                 return typeof(string);
 
+            if (underlyingType == typeof(char)) //not supported by Parquet.Net
+                return typeof(string);
+
             if (underlyingType == typeof(DateTime))
             {
+                //Parquet.Net 4+ has no DateTimeOffset columns ("DateTimeOffset support was dropped"), so
+                //TreatDateTimeAsDateTimeOffset is written as a UTC timestamp of the same instant (#288, #293).
                 if (Configuration.TreatDateTimeAsDateTimeOffset)
-                    return typeof(DateTimeOffset);
+                    return type.IsNullableType() ? typeof(DateTime?) : typeof(DateTime);
                 else if (Configuration.TreatDateTimeAsString)
                     return typeof(string);
                 else
@@ -255,16 +260,16 @@ namespace ChoETL
                 return typeof(string);
             else if (underlyingType.IsEnum)
                 return typeof(string);
-            else if (asRaw && type.IsNullableType())
-                return typeof(string);
+            //Nullable primitives used to be forced to string here (a Parquet.Net 3.x workaround), which turned
+            //long?/double?/... columns into text (#314, #300). Parquet.Net 4+ writes nullable columns natively.
             else if (type == typeof(byte[]))
                 return underlyingType;
-            else if (type == typeof(DateTimeOffset))
+            else if (underlyingType == typeof(DateTimeOffset))
             {
                 if (Configuration.TreatDateTimeOffsetAsString)
                     return typeof(string);
                 else
-                    return typeof(DateTimeOffset);
+                    return type.IsNullableType() ? typeof(DateTime?) : typeof(DateTime); //UTC timestamp, see above
             }
             else if (underlyingType.IsSimpleSpecial())
             {
@@ -274,6 +279,88 @@ namespace ChoETL
             }
             else
                 return typeof(string);
+        }
+
+        private readonly HashSet<string> _dataInferredFields = new HashSet<string>();
+
+        private Type GetColumnType(string key, Type fieldType)
+        {
+            var type = GetParquetType(fieldType, true);
+            return _dataInferredFields.Contains(key) ? ToNullableType(type) : type;
+        }
+
+        private static Type ToNullableType(Type type)
+        {
+            if (type == null || !type.IsValueType || Nullable.GetUnderlyingType(type) != null)
+                return type;
+            return typeof(Nullable<>).MakeGenericType(type);
+        }
+
+        private static int NumericRank(Type type)
+        {
+            switch (Type.GetTypeCode(type))
+            {
+                case TypeCode.SByte:
+                case TypeCode.Byte:
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Int64:
+                    return 1;
+                case TypeCode.Single:
+                case TypeCode.Double:
+                    return 2;
+                case TypeCode.Decimal:
+                    return 3;
+                default:
+                    return 0;
+            }
+        }
+
+        private static Type WidenType(Type current, Type next)
+        {
+            if (current == null || current == next)
+                return next;
+
+            int r1 = NumericRank(current), r2 = NumericRank(next);
+            if (r1 > 0 && r2 > 0)
+            {
+                int r = Math.Max(r1, r2);
+                return r == 3 ? typeof(decimal) : r == 2 ? typeof(double) : typeof(long);
+            }
+            return typeof(string);
+        }
+
+        //With WithMaxScanRows(n), dynamic column types come from all scanned records instead of only the
+        //first one, e.g. 1 then 2.5 -> double (it used to be long and 2.5 was truncated to 2) (#257).
+        private void InferFieldTypesFromScannedRecords(IList<object> records)
+        {
+            if (Configuration.MaxScanRows <= 0 || records == null || records.Count < 2)
+                return;
+
+            var dicts = records.Select(r => r as IDictionary<string, object> ?? r.ToDynamicObject() as IDictionary<string, object>)
+                .Where(d => d != null).ToArray();
+
+            foreach (var fc in Configuration.ParquetRecordFieldConfigurations)
+            {
+                if (fc.FieldType != null)
+                    continue;
+
+                Type inferred = null;
+                foreach (var d in dicts)
+                {
+                    if (!d.TryGetValue(fc.Name, out object value) || value == null || value is IDictionary<string, object> || (value is IList && !(value is Array)))
+                        continue;
+                    inferred = WidenType(inferred, value.GetType());
+                }
+
+                if (inferred != null)
+                {
+                    fc.FieldType = inferred;
+                    _dataInferredFields.Add(fc.Name);
+                }
+            }
         }
 
         private Array GetFieldValues(string key, Type ft1)
@@ -309,7 +396,7 @@ namespace ChoETL
                                         DateTime.TryParse(ChoUtility.ToNString((object)rec[key]), out dt);
                                     }
                                     DateTimeOffset dto = ToDateTimeOffset(dt);
-                                    fv.Add(dto);
+                                    fv.Add(dto.UtcDateTime);
                                 }
                                 else if (Configuration.TreatDateTimeAsString)
                                 {
@@ -340,14 +427,16 @@ namespace ChoETL
                                         fv.Add(((DateTimeOffset)rec[key]).ToString(Configuration.TypeConverterFormatSpec.DateTimeOffsetFormat));
                                 }
                                 else
-                                    fv.Add((DateTimeOffset)rec[key]);
+                                    fv.Add(((DateTimeOffset)rec[key]).UtcDateTime);
                             }
                             else
                                 fv.Add((object)rec[key]);
                         }
                         else if (ft == typeof(TimeSpan))
                         {
-                            if (rec[key] is TimeSpan)
+                            if (rec[key] == null)
+                                fv.Add(null); //null TimeSpan? used to be written as "00:00:00" (#232)
+                            else if (rec[key] is TimeSpan)
                             {
                                 fv.Add(((TimeSpan)rec[key]).ToString());
                             }
@@ -358,6 +447,8 @@ namespace ChoETL
                                 fv.Add(dt.ToString());
                             }
                         }
+                        else if (ft == typeof(ChoCurrency) && rec[key] == null)
+                            fv.Add(null); //null currency used to be written as 0
                         else if (ft == typeof(ChoCurrency))
                         {
                             ChoCurrency curr = new ChoCurrency();
@@ -378,11 +469,20 @@ namespace ChoETL
                         else if (ft == null || ft.IsEnum)
                             fv.Add(ChoUtility.ToNString((object)rec[key]));
                         else
-                            fv.Add(rec[key]);
+                            fv.Add(NestedValueAsJsonIfAny((object)rec[key]));
                     }
                 }
             }
             return fv.ToArray();
+        }
+
+        //Nested objects/lists can't go into a flat column; keep them as JSON text instead of losing them.
+        //(Use UseNestedKeyFormat(true) to flatten them into separate columns.)
+        private static object NestedValueAsJsonIfAny(object value)
+        {
+            if (value is IDictionary<string, object> || (value is IList && !(value is Array)))
+                return JsonConvert.SerializeObject(value);
+            return value;
         }
 
         public DateTimeOffset ToDateTimeOffset(DateTime? dateTime)
@@ -408,7 +508,7 @@ namespace ChoETL
                     if (Configuration.IgnoredFields.Contains(kvp.Value.FieldName))
                         continue;
 
-                    fields.Add(kvp.Key, GetDataField(kvp.Value.FieldName, GetParquetType(kvp.Value.FieldType, true)));
+                    fields.Add(kvp.Key, GetDataField(kvp.Value.FieldName, GetColumnType(kvp.Key, kvp.Value.FieldType)));
                 }
             }
             else
@@ -566,6 +666,7 @@ namespace ChoETL
                             RaiseFileHeaderArrange(ref fns);
 
                             Configuration.ValidateInternal(fns.ToArray());
+                            InferFieldTypesFromScannedRecords(_recBuffer.Value);
                             var dict = Configuration.ParquetRecordFieldConfigurations.ToDictionary(i => i.Name, i => i.FieldType == null ? null : i.FieldType);
                             RaiseMembersDiscovered(dict);
                             Configuration.UpdateFieldTypesIfAny(dict);
@@ -908,7 +1009,11 @@ namespace ChoETL
                                 if (fieldValue == null)
                                     kvp.Value.FieldType = typeof(string);
                                 else
+                                {
                                     kvp.Value.FieldType = fieldValue.GetType();
+                                    //Types inferred from data are written as nullable columns: a null in a later record must stay null, not become 0 (#257)
+                                    _dataInferredFields.Add(kvp.Key);
+                                }
                             }
                         }
                         else if (kvp.Value.FieldType == typeof(object))
