@@ -1,12 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-#if NET8_0_OR_GREATER
 using Microsoft.Data.SqlClient;
-#elif _ALL_NET_
-using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 using System.Diagnostics;
 using System.IO;
 using System.Linq;

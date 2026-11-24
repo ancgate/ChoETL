@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\ChoETL.Build.props" />
+
   <PropertyGroup>
     <Version>1.0.1.36</Version>
     <Authors>Cinchoo</Authors>
     <Company>Cinchoo Inc.</Company>
     <Description>Parquet extension to Cinchoo ETL framework</Description>
     <Copyright>Copyright Cinchoo Inc.</Copyright>
-    <PackageLicenseUrl>https://github.com/Cinchoo/ChoETL/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/Cinchoo/ChoETL</PackageProjectUrl>
-    <PackageIconUrl></PackageIconUrl>
     <RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
-    <RepositoryType>GitHub</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>ETL c# .NET CSV Xml JSON Flat Parquet Yaml</PackageTags>
     <PackageReleaseNotes>.NET Standard version</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -18,12 +18,17 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>ChoETL.Parquet.snk</AssemblyOriginatorKeyFile>
     <PackageIcon>cinchoo.png</PackageIcon>
-      <TargetFrameworks>netstandard2.0;net9.0;net8.0;net7.0;net5.0;net6.0</TargetFrameworks>
+      <TargetFrameworks>$(ChoETLTargetFrameworks)</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="Parquet.net" Version="4.16.4" />
+    <PackageReference Include="Newtonsoft.Json" Version="$(ChoETLNewtonsoftJsonVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Parquet.Net" Version="4.25.0" />
+    <!-- IronCompress (a Parquet.Net 4.x dependency) pulls in Snappier 1.1.1, which has a known vulnerability (#331). -->
+    <PackageReference Include="Snappier" Version="1.3.3" />
   </ItemGroup>
 
   <ItemGroup>

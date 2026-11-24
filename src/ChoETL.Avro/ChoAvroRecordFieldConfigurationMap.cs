@@ -96,7 +96,7 @@ namespace ChoETL
             return this;
         }
 
-#if !NETSTANDARD2_0
+#if NETFRAMEWORK
         public ChoAvroRecordFieldConfigurationMap PropertyConverter(System.Windows.Data.IValueConverter converter)
         {
             if (_config.PropConverters.IsNullOrEmpty())

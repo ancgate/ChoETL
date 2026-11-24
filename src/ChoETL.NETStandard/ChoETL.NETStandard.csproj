@@ -1,21 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+	<Import Project="..\ChoETL.Build.props" />
+
 	<PropertyGroup>
-        <TargetFrameworks>netstandard2.0;net9.0;net8.0;net7.0;net5.0;net6.0</TargetFrameworks>
+		<TargetFrameworks>$(ChoETLTargetFrameworks)</TargetFrameworks>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>ChoETL.NETStandard</PackageId>
 		<Authors>Cinchoo</Authors>
 		<Company>Cinchoo Inc.</Company>
 		<Product>ChoETL.NETStandard</Product>
-		<Description>ETL Framework for .NET</Description>
+		<Description>ETL Framework for .NET (.NET Standard 2.0, .NET 6, .NET 8, .NET 10)</Description>
 		<Copyright>Copyright Cinchoo Inc.</Copyright>
-		<PackageIconUrl>http://www.gravatar.com/avatar/6ebc114acdd1d9f7ec5028a165a819b1.png</PackageIconUrl>
 		<PackageProjectUrl>https://github.com/Cinchoo/ChoETL</PackageProjectUrl>
-		<PackageLicenseUrl>https://github.com/Cinchoo/ChoETL/blob/master/LICENSE</PackageLicenseUrl>
 		<RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
-		<RepositoryType>GitHub</RepositoryType>
+		<RepositoryType>git</RepositoryType>
 		<PackageTags>ETL c# .NET CSV Xml JSON Flat</PackageTags>
-		<PackageReleaseNotes>.NET Standard version</PackageReleaseNotes>
+		<PackageReleaseNotes>.NET Standard 2.0 / .NET 6 / .NET 8 / .NET 10 version</PackageReleaseNotes>
 		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 		<Version>1.2.1.72</Version>
 		<AssemblyName>ChoETL.Core</AssemblyName>
@@ -24,25 +24,25 @@
 		<AssemblyOriginatorKeyFile>ChoETL.NETStandard.snk</AssemblyOriginatorKeyFile>
 		<PackageIcon>cinchoo.png</PackageIcon>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<!-- Append to (do not replace) the SDK defaults, so TRACE/DEBUG/RELEASE and the
+		     per-framework symbols stay correct in every configuration. -->
+		<DefineConstants>$(DefineConstants);_DYNAMIC_</DefineConstants>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-		<DefineConstants>TRACE;NETSTANDARD2_0;_DYNAMIC_</DefineConstants>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-		<DefineConstants>$(DefineConstants)TRACE;_DYNAMIC_</DefineConstants>
-	</PropertyGroup>
 	<ItemGroup>
+		<!-- Microsoft.Data.SqlClient replaces the deprecated System.Data.SqlClient on every target (#267, #328). -->
+		<PackageReference Include="Microsoft.Data.SqlClient" Version="$(ChoETLSqlClientVersion)" />
+		<PackageReference Include="System.CodeDom" Version="$(ChoETLCodeDomPackageVersion)" />
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="$(ChoETLPlatformPackageVersion)" />
+	</ItemGroup>
+
+	<!-- These APIs are part of the shared framework on .NET 6+; only .NET Standard 2.0 needs the packages. -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
 		<PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-		<PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
-		<PackageReference Include="System.CodeDom" Version="4.4.0" />
 		<PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
-		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.2" />
-		<PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
 		<PackageReference Include="System.Memory" Version="4.6.3" />
-		<PackageReference Include="System.Reflection.Emit" Version="4.3.0" />
-		<PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0" />
+		<PackageReference Include="System.Reflection.Emit" Version="4.7.0" />
+		<PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
 	</ItemGroup>
 	<ItemGroup>
         <Compile Include="..\ChoETL\Common\Attributes\ChoQuoteFieldAttribute.cs" Link="Common\Attributes\ChoQuoteFieldAttribute.cs" />

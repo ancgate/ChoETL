@@ -1,0 +1,50 @@
+<Project>
+  <!--
+    Shared build settings for the SDK-style ChoETL library projects.
+    Imported explicitly (not via Directory.Build.props) so the legacy
+    .NET Framework projects under src/ChoETL and src/Test are not affected.
+  -->
+
+  <PropertyGroup>
+    <!-- Supported target frameworks: .NET Standard 2.0 (covers .NET Framework 4.6.1+ and .NET Core 2.0+),
+         plus explicit builds for .NET 6, .NET 8 (LTS) and .NET 10 (LTS). -->
+    <ChoETLTargetFrameworks>netstandard2.0;net6.0;net8.0;net10.0</ChoETLTargetFrameworks>
+    <!-- Entity Framework 6 only ships a .NET Standard 2.1 build, so the EF-based plugins use 2.1. -->
+    <ChoETLEF6TargetFrameworks>netstandard2.1;net6.0;net8.0;net10.0</ChoETLEF6TargetFrameworks>
+
+    <!-- .NET 6 is out of Microsoft support but is still a requested target; don't warn on every build. -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+
+    <!-- Fail loudly on vulnerable dependencies, including transitive ones (#267, #328, #331). -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+
+    <!-- SourceLink / symbol packages (#238). SourceLink itself is built into the .NET 8+ SDK. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <DebugType>portable</DebugType>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true' or '$(APPVEYOR)' == 'True'">true</ContinuousIntegrationBuild>
+
+    <!-- License metadata that NuGet can validate (PackageLicenseUrl is deprecated). -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+  <!-- Versions of Microsoft platform packages. Packages from the .NET 10 wave do not support net6.0,
+       so net6.0 gets the .NET 8 wave (which still supports net6.0). -->
+  <PropertyGroup>
+    <ChoETLPlatformPackageVersion>10.0.15</ChoETLPlatformPackageVersion>
+    <ChoETLPlatformPackageVersion Condition="'$(TargetFramework)' == 'net6.0'">8.0.1</ChoETLPlatformPackageVersion>
+    <ChoETLCodeDomPackageVersion>10.0.15</ChoETLCodeDomPackageVersion>
+    <ChoETLCodeDomPackageVersion Condition="'$(TargetFramework)' == 'net6.0'">8.0.0</ChoETLCodeDomPackageVersion>
+    <ChoETLNewtonsoftJsonVersion>13.0.4</ChoETLNewtonsoftJsonVersion>
+    <ChoETLSqlClientVersion>6.1.8</ChoETLSqlClientVersion>
+  </PropertyGroup>
+</Project>
