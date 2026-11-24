@@ -111,6 +111,31 @@ namespace ChoETL.Tests
             Assert.That(lines[2], Is.EqualTo("Fire2,"));
         }
 
+        // #321: NestedColumnSeparator was renamed to NestedKeySeparator; the old name works again (obsolete alias).
+        // This is the maintainer's own answer to #304, which used the old name.
+        [Test]
+        public void Issue321_NestedColumnSeparatorAliasStillWorks()
+        {
+            string json = @"[
+                { ""incident"": { ""name"": ""Fire1"" }, ""additionalClaimant"": [ { ""claimantFirstName"": ""Olga"" }, { ""claimantFirstName"": ""Meera"" } ] } ]";
+            var sb = new StringBuilder();
+            using (var r = ChoJSONReader.LoadText(json)
+                .Configure(c => c.DefaultArrayHandling = false)
+                .Configure(c => c.FlattenNode = true)
+                .Configure(c => c.UseNestedKeyFormat = true)
+                .Configure(c => c.FlattenByNodeName = "additionalClaimant")
+                .Configure(c => c.NestedColumnSeparator = '.'))
+            using (var w = new ChoCSVWriter(sb).WithFirstLineHeader())
+            {
+                Assert.That(r.Configuration.NestedKeySeparator, Is.EqualTo('.'));
+                w.Write(r);
+            }
+            var lines = Normalize(sb.ToString()).TrimEnd().Split('\n');
+            Assert.That(lines.Length, Is.EqualTo(3));
+            Assert.That(lines[1], Does.Contain("Olga"));
+            Assert.That(lines[2], Does.Contain("Meera"));
+        }
+
         // Same defect class as #322: Write(DataTable) recursed forever with UseJSONSerialization
         [Test]
         public void Issue322_JsonWriteDataTableWithJsonSerializationDoesNotRecurse()

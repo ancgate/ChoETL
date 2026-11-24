@@ -28,6 +28,11 @@
     <DebugType>portable</DebugType>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true' or '$(APPVEYOR)' == 'True'">true</ContinuousIntegrationBuild>
 
+    <!-- Ship XML documentation so existing doc comments show up in IntelliSense (#126).
+         Missing/malformed doc comment warnings are suppressed; most members are not documented yet. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1570;CS1571;CS1572;CS1573;CS1574;CS1580;CS1584;CS1587;CS1591;CS1658;CS1734</NoWarn>
+
     <!-- License metadata that NuGet can validate (PackageLicenseUrl is deprecated). -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
