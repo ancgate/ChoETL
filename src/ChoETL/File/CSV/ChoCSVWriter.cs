@@ -490,6 +490,12 @@ namespace ChoETL
             return this;
         }
 
+        public ChoCSVWriter<T> QuoteNullValues(bool flag = true)
+        {
+            Configuration.QuoteNullValues = flag;
+            return this;
+        }
+
         public ChoCSVWriter<T> QuoteAllHeaders(bool flag = true)
         {
             Configuration.FileHeaderConfiguration.QuoteAllHeaders = flag;

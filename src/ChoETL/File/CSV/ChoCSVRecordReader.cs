@@ -1365,7 +1365,8 @@ namespace ChoETL
                 if (config.QuoteField != null && config.QuoteField.Value && startChar == Configuration.QuoteChar && endChar == Configuration.QuoteChar)
                     fieldValue = fieldValue.Substring(1, fieldValue.Length - 2);
                 else if (startChar == Configuration.QuoteChar && endChar == Configuration.QuoteChar &&
-                    (fieldValue.Contains(Configuration.Delimiter)
+                    (Configuration.QuoteAllFields == null //Auto-detect mode: RFC 4180 enclosing quotes are not part of the value (#327)
+                    || fieldValue.Contains(Configuration.Delimiter)
                     || fieldValue.Contains(Configuration.EOLDelimiter)))
                     fieldValue = fieldValue.Substring(1, fieldValue.Length - 2);
             }
@@ -1637,7 +1638,10 @@ namespace ChoETL
                 }
             }
 
-            if (Configuration.QuoteAllFields != null && Configuration.QuoteAllFields.Value && headerValue.StartsWith(@"""") && headerValue.EndsWith(@""""))
+            //Quoted header names ("Id","Name") are unquoted unless quote handling is explicitly turned off (#307, #284)
+            if ((Configuration.QuoteAllFields == null || Configuration.QuoteAllFields.Value)
+                && headerValue.Length >= 2
+                && headerValue[0] == Configuration.QuoteChar && headerValue[headerValue.Length - 1] == Configuration.QuoteChar)
                 return headerValue.Substring(1, headerValue.Length - 2);
             else
                 return headerValue;
@@ -1647,7 +1651,7 @@ namespace ChoETL
         {
             if (value == null) return value;
 
-            if (Configuration.QuoteAllFields != null && Configuration.QuoteAllFields.Value &&
+            if (Configuration.QuoteAllFields != null && Configuration.QuoteAllFields.Value && value.Length >= 2 &&
                 value.StartsWith(Configuration.QuoteChar.ToNString()) && value.EndsWith(Configuration.QuoteChar.ToNString()))
                 return value.Substring(1, value.Length - 2);
             else

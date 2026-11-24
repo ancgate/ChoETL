@@ -568,6 +568,7 @@ namespace ChoETL
                 fieldConfig = kvp.Value;
                 fieldValue = null;
                 fieldText = String.Empty;
+                bool isNullFieldValue = false;
 
                 if (Configuration.PIDictInternal != null)
                 {
@@ -709,6 +710,7 @@ namespace ChoETL
                     if (!RaiseBeforeRecordFieldWrite(rec, index, kvp.Key, ref fieldValue))
                         return false;
 
+                    isNullFieldValue = fieldValue == null || fieldValue == DBNull.Value;
                     if (kvp.Value.SourceType == null && !(fieldValue is IList))
                         kvp.Value.SourceType = typeof(string);
                     if (fieldConfig.ValueSelector == null)
@@ -835,6 +837,8 @@ namespace ChoETL
                 }
 
                 quoteField = kvp.Value.QuoteField;
+                if (isNullFieldValue && !Configuration.QuoteNullValues && kvp.Value.NullValue.IsNullOrEmpty())
+                    quoteField = false;
                 if (firstColumn)
                 {
                     msg.Append(NormalizeFieldValue(kvp.Key, fieldText, kvp.Value.Size, kvp.Value.Truncate, quoteField,
