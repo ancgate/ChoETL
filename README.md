@@ -27,6 +27,25 @@ To install Cinchoo ETL (.NET Standard / .NET Core), run the following command in
 
     PM> Install-Package ChoETL.NETStandard
     
+### Supported frameworks
+
+The `.NETStandard` packages (ChoETL.NETStandard, ChoETL.JSON.NETStandard, ChoETL.Parquet, ChoETL.Yaml, ChoETL.Avro) target:
+
+| Target | Covers |
+|---|---|
+| `netstandard2.0` | .NET Framework 4.6.1+, .NET Core 2.0+, Mono, Xamarin, Unity |
+| `net6.0` | .NET 6 / 7 |
+| `net8.0` | .NET 8 / 9 (LTS) |
+| `net10.0` | .NET 10 (LTS) |
+
+The Entity Framework 6 based plugins (ChoETL.SQLite.Core, ChoETL.SqlServer.Core) target `netstandard2.1`, `net6.0`, `net8.0` and `net10.0`.
+SQL Server access (`Bcp`, `SqlBulkCopy` helpers) uses `Microsoft.Data.SqlClient` on every target.
+
+Build and test from the command line (requires the .NET 10 SDK):
+
+    dotnet build src/ChoETL.NETStandard.sln -c Release
+    dotnet test src/Test/ChoETL.Tests
+
 Add namespace to the program
 
 ``` csharp
