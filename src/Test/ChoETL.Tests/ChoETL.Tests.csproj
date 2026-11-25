@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Data\*.parquet" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\ChoETL.NETStandard\ChoETL.NETStandard.csproj" />
     <ProjectReference Include="..\..\ChoETL.JSON.NETStandard\ChoETL.JSON.NETStandard.csproj" />
     <ProjectReference Include="..\..\ChoETL.Parquet\ChoETL.Parquet.csproj" />

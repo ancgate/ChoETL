@@ -4,12 +4,14 @@ All **76 open issues** on https://github.com/Cinchoo/ChoETL/issues (as of 2026-1
 
 | Status | Meaning | Count |
 |---|---|---|
-| **FIXED** | Reproduced and fixed in this branch, with a regression test in `src/Test/ChoETL.Tests` (or a build/packaging change) | 27 |
-| **VERIFIED** | Already fixed upstream; a regression test confirms it on current source | 17 |
+| **FIXED** | Reproduced and fixed in this branch, with a regression test in `src/Test/ChoETL.Tests` (or a build/packaging change) | 30 |
+| **VERIFIED** | Already fixed upstream; a regression test confirms it on current source | 18 |
 | **ANSWERED** | Usage question or by-design behaviour; the answer is below, no code change | 15 |
-| **PARTIAL** | Part fixed or verified, part needs the reporter's data or more work | 5 |
+| **PARTIAL** | Part fixed or verified, part needs the reporter's data or more work | 1 |
 | **DEFERRED** | Feature work too large for this pass (see "Deferred work") | 11 |
 | **N/A** | Not a code issue | 1 |
+
+Attachments: for the second pass the reporters' attachments were downloaded and used (#303 `result.json`, #325 `Sample.json`, #206 patch, #173 project files). dotnetfiddle links and screenshots could not be reached from the build environment.
 
 Regression safety: the upstream test suites (CSV reader/writer, JSON reader/writer, XML reader, Parquet reader/writer, about 900 tests) were compiled for net8.0 and run before and after every change. None of the fixes caused a new failure. Two upstream Parquet expectations were updated because they encoded the old buggy output (see "Behaviour changes").
 
@@ -67,13 +69,13 @@ Regression safety: the upstream test suites (CSV reader/writer, JSON reader/writ
 
 | # | Title | Status | Notes |
 |---|---|---|---|
-| 325 | Convert JSON to CSV issue 2 | FIXED | When a member is an array in one record and a scalar in another, the CSV header kept only one shape and the other record's values were silently dropped. Missing flattened keys are now appended to the header. Existing column order is unchanged. |
-| 206 | Flatten JSON array in array | FIXED | `FlattenByNodeName` over `[[0,24],[1,2]]` gives 2 records (`TimeRange` = inner array) instead of 4 single-value records. |
+| 325 | Convert JSON to CSV issue 2 | FIXED | When a member is an array in one record and a scalar in another, the CSV header kept only one shape and the other record's values were silently dropped. Missing flattened keys are now appended to the header; existing column order is unchanged. **Verified with the reporter's `Sample.json`**: on upstream HEAD every row still lost one value (`test20` or `test30`), even though a fix was claimed in 1.2.1.68; on this branch every row keeps all values. |
+| 206 | Flatten JSON array in array | FIXED | `FlattenByNodeName` over `[[0,24],[1,2]]` gives 2 records (`TimeRange` = inner array) instead of 4 single-value records. The patch attached by a commenter pointed at a second, more serious bug: with `MaxScanRows` set, the JSON reader read its forward-only source twice and one record past the scan limit, **silently dropping records** (6 records with `MaxScanRows = 1` returned only ids 1, 2, 4). Fixed with a single shared enumerator (tests for 1/2/3/10 scan rows, streams and `FlattenNode`). |
 | 304 | Merging nested arrays when arrays are empty | VERIFIED | Reporter's configuration with an empty array works. Test added. |
-| 303 | ChoReaderException 'Failed to parse '"'' | PARTIAL | Best-guess repro (value consisting of a single `"`) passes. The reporter's `result.json` is needed to go further. |
+| 303 | ChoReaderException 'Failed to parse '"'' | VERIFIED | Reproduced with the reporter's `result.json` (a 7 MB Telegram chat export): one message's `text` array contains a lone `"` element, the value in the error. With the reporter's exact settings, upstream HEAD and this branch convert all 13,775 messages without error, and the value is written correctly as `""""`. Regression test uses synthetic data of the same shape (the export contains third-party personal data). |
 | 263 | JSON to CSV to JSON loses arrays | DEFERRED | CSV cannot represent empty arrays. Round-trip needs explicit field definitions (maintainer's fiddle). |
 | 194 | Generate JSON path | DEFERRED | Feature request. |
-| 191 | Flatten complex JSON structure | PARTIAL | Parts (a) and (b) were fixed upstream (1.2.1.45 / 1.2.1.48). Part (c) (root fields lost when the flatten node's items have their own arrays) is not addressed. |
+| 191 | Flatten complex JSON structure | FIXED | Parts (a) and (b) were fixed upstream (1.2.1.45 / 1.2.1.48). Part (c): `FlattenByJsonPath` dropped the root object's fields (`BrandId`) while `FlattenByNodeName` kept them, and a path selecting an array (`$.Contact`) produced one empty record. Both fixed; the reporter's expected 3 rows (`BrandId, Value, Type, PostCode~Area, PostCode~Value`) are produced. A key that literally contains `.` (`Description.vi`) is treated as a nested path by dynamic records; workaround: `ChoETLSettings.KeySeparator = '\u001F'` (tested). The fiddle with the reporter's code is not reachable from here. |
 | 165 | CSV to JSON including null | VERIFIED | `IgnoreFieldValueMode(ChoIgnoreFieldValueMode.Null)` on the JSON writer. |
 | 147 | Merging same JSON child keys | ANSWERED | Use `WithField("Players", jsonPath: "$..Players[*].player", valueConverter: o => string.Join(",", (IEnumerable<object>)o))`. |
 | 141 | Nested JSON to CSV rows | DEFERRED | Generic "every nested array becomes rows" for unknown schemas. The workaround is `FlattenBy` per branch. |
@@ -85,7 +87,7 @@ Regression safety: the upstream test suites (CSV reader/writer, JSON reader/writ
 |---|---|---|---|
 | 316 | ChoXmlWriter: array item names | FIXED | New `ChoXmlRecordConfiguration.ArrayItemNodeName` (for example `"item"`) names object items of every array when writing dynamic records. |
 | 131 | Memory leak in XML reader | FIXED | `ToObject(XmlNode, ..., unknownNode)` added the handler to a cached, shared XmlSerializer on every call. A test checks that 2,000 `LoadXElement` calls generate no new assemblies. |
-| 173 | Unknown default xmlns | VERIFIED | MSBuild-style project file with a default namespace binds. Test added. |
+| 173 | Unknown default xmlns | VERIFIED | Checked with the reporter's attached project file (`HsDragon TestFile.csproj`, default MSBuild 2003 namespace): all 9 PropertyGroups, the assembly name and the 3 Compile items bind. Test added. |
 | 203 | PackageReference Include not loaded | ANSWERED | POCO lists use XmlSerializer semantics: a list of repeated, unwrapped elements needs `[XmlElement]`. Test documents the pattern. |
 | 177 | Make `[XmlElement]` the default | DEFERRED | Auto-detecting wrapped vs unwrapped lists conflicts with serializer caching per type. |
 
@@ -100,10 +102,10 @@ Regression safety: the upstream test suites (CSV reader/writer, JSON reader/writ
 | 292 | DB Null exception | FIXED | Same as #244. |
 | 232 | Nullable fields NullReferenceException | FIXED | Nullable POCO fields round-trip. Null `TimeSpan?` was written as `"00:00:00"` and null `ChoCurrency` as 0. |
 | 288 | Writing dates as Parquet datetime | FIXED | DateTime is written as a timestamp. The documented `TreatDateTimeAsDateTimeOffset = true` threw `NotSupportedException` with Parquet.Net 4 ("DateTimeOffset support was dropped"); it now writes a UTC timestamp. |
-| 293 | MissingMethodException with IgnoreDictionaryFieldPrefix | PARTIAL | `IgnoreDictionaryFieldPrefix` works with `UseNestedKeyFormat(true)` (test). Without nested key format, nested objects crashed with `NotImplementedException`; they are now stored as JSON text. The exact MissingMethodException needs the reporter's payload. |
+| 293 | MissingMethodException with IgnoreDictionaryFieldPrefix | FIXED | No attachment exists; the reporter's settings were used on REST-style JSON. On upstream HEAD those settings failed three ways: `TreatDateTimeAsDateTimeOffset` threw (fixed with #288), nested objects threw `NotImplementedException` (now written as JSON text), and with `UseNestedKeyFormat` prefix-less keys collided (root `id` and `owner.id`: "An item with the same key has already been added"). Colliding keys now fall back to their prefixed name (`owner/id`). The exact `MissingMethodException` came from ChoETL.Parquet 1.0.1.27 and does not occur on current code. |
 | 152 | DateTimeOffset from CSV | VERIFIED | Test passes (written as text by default; `TreatDateTimeOffsetAsString = false` writes UTC timestamps). |
 | 202 | Different array lengths | VERIFIED | Missing elements are now written as null rather than 0 (upstream test expectation updated). |
-| 256 | Datetime handling (Python files) | PARTIAL | The DateTime/DateTimeOffset write part is fixed (#288). `TreatBigIntegersAsDates` on Python-written files needs a sample file. |
+| 256 | Datetime handling (Python files) | FIXED | No attachment exists; files were generated with the reporter's pandas snippet (default, ms, INT96 and DATE columns; generator and two files are in `src/Test/ChoETL.Tests/Data`). Default pandas files already read as DateTime. Legacy INT96 timestamps crashed with "Cannot use type 'System.Numerics.BigInteger'" when `TreatBigIntegersAsDates` was off (Parquet.Net cannot decode BigInteger); they are now read as dates. The write side is fixed by #288. The Sep 2023 `MissingMethodException ... MigrateToNewSchema` came from mixing ChoETL.NETStandard 1.2.1.61 with ChoETL.Parquet 1.0.1.25-beta2; use matching versions. |
 | 298 | Gzip makes file larger | ANSWERED | Small files and already-dictionary-encoded columns don't compress well. Try `CompressionMethod.Snappy`/`Zstd` and a larger `RowGroupSize`. |
 | 250 | Stream compatibility / size | ANSWERED | Writers stream row groups (`RowGroupSize`). Use compression for size. |
 | 246 | Flattened Parquet back to POCO | ANSWERED | Read with `UseNestedKeyFormat()` (same separator as when writing) so keys are un-flattened before `ConvertToObject<T>()`. |
@@ -132,6 +134,10 @@ Regression safety: the upstream test suites (CSV reader/writer, JSON reader/writ
    - nested objects without `UseNestedKeyFormat` are written as JSON text.
 5. **CSV header scan** may add columns that previously had their values dropped (#325).
 6. **Release builds define `TRACE` again**, so ChoETL's `Trace` logging is active.
+7. **JSON reader with `MaxScanRows`** returns every record (it used to drop some).
+8. **`FlattenByJsonPath`** records include the root object's scalar fields, as `FlattenByNodeName` records already did.
+9. **`IgnoreDictionaryFieldPrefix`**: when two flattened members would get the same key, the later one keeps its prefixed name instead of failing.
+10. **Parquet INT96 timestamps** are always read as DateTime, regardless of `TreatBigIntegersAsDates`.
 
 ## Deferred work
 

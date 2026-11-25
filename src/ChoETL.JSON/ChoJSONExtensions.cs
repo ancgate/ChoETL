@@ -512,6 +512,38 @@ namespace ChoETL
 
          */
 
+        //FlattenByJsonPath: a path that selects an array ("$.Contact") means its items, like "$.Contact[*]".
+        private static IEnumerable<JToken> SelectFlattenByTokens(JObject root, string flattenByJsonPath)
+        {
+            foreach (var token in root.SelectTokens(flattenByJsonPath))
+            {
+                if (token is JArray array)
+                {
+                    foreach (var item in array.Children<JObject>())
+                        yield return item;
+                }
+                else
+                    yield return token;
+            }
+        }
+
+        //FlattenByJsonPath used to drop the root object's own fields (e.g. 'BrandId'), unlike FlattenByNodeName,
+        //which keeps them (#191). Root scalar fields are carried into every flattened record; a field of the
+        //selected object with the same name wins.
+        private static IEnumerable<JProperty> GetRootScalarProperties(JObject root, JToken selected)
+        {
+            if (ReferenceEquals(root, selected))
+                return null;
+
+            var selectedObject = selected as JObject;
+            var props = root.Properties()
+                .Where(p => p.Value is JValue)
+                .Where(p => selectedObject == null || !selectedObject.ContainsKey(p.Name))
+                .Select(p => new JProperty(p.Name, p.Value))
+                .ToArray();
+            return props.Length == 0 ? null : props;
+        }
+
         private static void AddFlattenedProperties(JObject res, IEnumerable<JProperty> otherProperties, string parentNodeName,
             string nestedKeySeparator, Func<string, string, string> nestedKeyResolver)
         {
@@ -766,12 +798,12 @@ namespace ChoETL
                     {
                         if (!flattenByNodeName.IsNullOrWhiteSpace())
                         {
-                            foreach (var co in obj.SelectTokens(flattenByJsonPath))
+                            foreach (var co in SelectFlattenByTokens(obj, flattenByJsonPath))
                             {
                                 children = co.Children<JProperty>().GroupBy(prop => prop.Value?.Type == JTokenType.Array
                                     && prop.Name == flattenByNodeName).ToDictionary(gr => gr.Key);
 
-                                foreach (var c in GetFlattenedChildObjects(children, null, null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
+                                foreach (var c in GetFlattenedChildObjects(children, GetRootScalarProperties(obj, co), null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
                 nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator == null ? String.Empty : arrayIndexSeparator.ToString(),
                 ignoreArrayIndex, null, flattenByNodeName, flattenByJsonPath))
                                     yield return c;
@@ -782,11 +814,11 @@ namespace ChoETL
                         }
                         else
                         {
-                            foreach (var co in obj.SelectTokens(flattenByJsonPath))
+                            foreach (var co in SelectFlattenByTokens(obj, flattenByJsonPath))
                             {
                                 children = co.Children<JProperty>().GroupBy(prop => prop.Value?.Type == JTokenType.Array).ToDictionary(gr => gr.Key);
 
-                                foreach (var c in GetFlattenedChildObjects(children, null, null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
+                                foreach (var c in GetFlattenedChildObjects(children, GetRootScalarProperties(obj, co), null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
                 nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator == null ? String.Empty : arrayIndexSeparator.ToString(),
                 ignoreArrayIndex, null, flattenByNodeName, flattenByJsonPath))
                                     yield return c;
