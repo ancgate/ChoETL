@@ -48,52 +48,34 @@ namespace ChoETL
 
                 string customBoolFormatText = null;
                 ChoBooleanFormatSpec booleanFormat = GetTypeFormat(parameter, out customBoolFormatText); //.GetValueAt(0, ChoTypeConverterFormatSpec.Instance.BooleanFormat);
+
+                // The configured format is tried first (it also controls how values are written).
+                // When reading, the other standard tokens (1/0, Y/N, T/F, true/false, yes/no) are
+                // accepted as well, so e.g. "0"/"1" columns parse with the default TrueOrFalse
+                // format (#219). Text that matches nothing still raises an error.
+                bool result;
                 switch (booleanFormat)
                 {
                     case ChoBooleanFormatSpec.YOrN:
-                        if (txt.Length == 1)
-                        {
-                            if (txt[0] == 'Y' || txt[0] == 'y')
-                                return true;
-                            else if (txt[0] == 'N' || txt[0] == 'n')
-                                return false;
-                        }
-
-                        throw new ChoParserException($"Invalid data `{txt}` found.");
+                        if (TryParseSingleChar(txt, 'Y', 'N', out result))
+                            return result;
+                        break;
                     case ChoBooleanFormatSpec.TOrF:
-                        if (txt.Length == 1)
-                        {
-                            if (txt[0] == 'T' || txt[0] == 't')
-                                return true;
-                            else if (txt[0] == 'F' || txt[0] == 'f')
-                                return false;
-                        }
-
-                        throw new ChoParserException($"Invalid data `{txt}` found.");
+                        if (TryParseSingleChar(txt, 'T', 'F', out result))
+                            return result;
+                        break;
                     case ChoBooleanFormatSpec.TrueOrFalse:
-                        if (String.Compare(txt, "true", true) == 0)
-                            return true;
-                        else if (String.Compare(txt, "false", true) == 0)
-                            return false;
-
-                        throw new ChoParserException($"Invalid data `{txt}` found.");
+                        if (TryParseWord(txt, "true", "false", out result))
+                            return result;
+                        break;
                     case ChoBooleanFormatSpec.YesOrNo:
-                        if (String.Compare(txt, "yes", true) == 0)
-                            return true;
-                        else if (String.Compare(txt, "no", true) == 0)
-                            return false;
-
-                        throw new ChoParserException($"Invalid data `{txt}` found.");
+                        if (TryParseWord(txt, "yes", "no", out result))
+                            return result;
+                        break;
                     case ChoBooleanFormatSpec.ZeroOrOne:
-                        if (txt.Length == 1)
-                        {
-                            if (txt[0] == '1')
-                                return true;
-                            else if (txt[0] == '0')
-                                return false;
-                        }
-
-                        throw new ChoParserException($"Invalid data `{txt}` found.");
+                        if (TryParseSingleChar(txt, '1', '0', out result))
+                            return result;
+                        break;
                     default:
                         string boolTxt = parameter.GetValueAt<string>(0);
                         if (boolTxt.IsNullOrWhiteSpace())
@@ -101,47 +83,58 @@ namespace ChoETL
 
                         string trueBoolTxt = boolTxt.SplitNTrim().FirstOrDefault();
                         string falseBoolTxt = boolTxt.SplitNTrim().Skip(1).FirstOrDefault();
-                        if (trueBoolTxt.IsNullOrWhiteSpace()
-                            || falseBoolTxt.IsNullOrWhiteSpace())
-                        {
-                            if (txt.Length == 1)
-                            {
-                                if (txt[0] == 'Y' || txt[0] == 'y'
-                                    || txt[0] == 'T' || txt[0] == 't'
-                                    || txt[0] == '1')
-                                    return true;
-                                else if (txt[0] == 'N' || txt[0] == 'n'
-                                    || txt[0] == 'F' || txt[0] == 'f'
-                                    || txt[0] == '0')
-                                    return false;
-
-                                throw new ChoParserException($"Invalid data `{txt}` found.");
-                            }
-                            else
-                            {
-                                if (String.Compare(txt, "true", true) == 0
-                                    || String.Compare(txt, "yes", true) == 0)
-                                    return true;
-                                else if (String.Compare(txt, "false", true) == 0
-                                    || String.Compare(txt, "no", true) == 0)
-                                    return false;
-
-                                throw new ChoParserException($"Invalid data `{txt}` found.");
-                            }
-                        }
-                        else
-                        {
-                            if (String.Compare(txt, trueBoolTxt, true) == 0)
-                                return true;
-                            else if (String.Compare(txt, falseBoolTxt, true) == 0)
-                                return false;
-
-                            throw new ChoParserException($"Invalid data `{txt}` found.");
-                        }
+                        if (!trueBoolTxt.IsNullOrWhiteSpace()
+                            && !falseBoolTxt.IsNullOrWhiteSpace()
+                            && TryParseWord(txt, trueBoolTxt, falseBoolTxt, out result))
+                            return result;
+                        break;
                 }
+
+                if (TryParseAny(txt, out result))
+                    return result;
+
+                throw new ChoParserException($"Invalid data `{txt}` found.");
             }
             else
                 return value;
+        }
+
+        private static bool TryParseSingleChar(string txt, char trueChar, char falseChar, out bool result)
+        {
+            result = false;
+            if (txt.Length != 1)
+                return false;
+
+            char c = char.ToUpperInvariant(txt[0]);
+            if (c == char.ToUpperInvariant(trueChar))
+            {
+                result = true;
+                return true;
+            }
+            if (c == char.ToUpperInvariant(falseChar))
+                return true;
+
+            return false;
+        }
+
+        private static bool TryParseWord(string txt, string trueText, string falseText, out bool result)
+        {
+            result = false;
+            if (String.Compare(txt, trueText, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                result = true;
+                return true;
+            }
+            return String.Compare(txt, falseText, StringComparison.OrdinalIgnoreCase) == 0;
+        }
+
+        private static bool TryParseAny(string txt, out bool result)
+        {
+            return TryParseSingleChar(txt, '1', '0', out result)
+                || TryParseSingleChar(txt, 'Y', 'N', out result)
+                || TryParseSingleChar(txt, 'T', 'F', out result)
+                || TryParseWord(txt, "true", "false", out result)
+                || TryParseWord(txt, "yes", "no", out result);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)

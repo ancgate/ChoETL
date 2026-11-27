@@ -194,6 +194,16 @@ namespace ChoETL
             get;
             set;
         }
+        /// <summary>
+        /// Old name of <see cref="NestedKeySeparator"/>, kept so existing code keeps compiling (#321).
+        /// </summary>
+        [Obsolete("Use NestedKeySeparator instead.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public char? NestedColumnSeparator
+        {
+            get { return NestedKeySeparator; }
+            set { NestedKeySeparator = value; }
+        }
         public bool ConvertToFlattenObject
         {
             get;

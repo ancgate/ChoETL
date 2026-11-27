@@ -5,11 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
-#if NET8_0_OR_GREATER
 using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
@@ -210,6 +206,20 @@ namespace ChoETL
         private ParquetReader Create(StreamReader sr)
         {
             var r = ChoAsyncHelper.RunSync<ParquetReader>(() => ParquetReader.CreateAsync(sr.BaseStream, Configuration.ParquetOptions, leaveStreamOpen: Configuration.LeaveStreamOpen));
+
+            //Legacy INT96 timestamps (pandas/pyarrow use_deprecated_int96_timestamps, Spark, Impala, Hive) surface as
+            //BigInteger columns when TreatBigIntegersAsDates is off, and Parquet.Net cannot decode BigInteger at all
+            //("Cannot use type 'System.Numerics.BigInteger'"). Such columns are read as dates instead of failing (#256).
+            if (Configuration.ParquetOptions != null && !Configuration.ParquetOptions.TreatBigIntegersAsDates
+                && r.Schema.GetDataFields().Any(f => f.ClrType == typeof(System.Numerics.BigInteger))
+                && sr.BaseStream.CanSeek)
+            {
+                ChoETLFramework.WriteLog(TraceSwitch.TraceInfo, "INT96 columns found; reading them as DateTime (TreatBigIntegersAsDates = true).");
+                r.Dispose();
+                Configuration.ParquetOptions.TreatBigIntegersAsDates = true;
+                sr.BaseStream.Seek(0, SeekOrigin.Begin);
+                r = ChoAsyncHelper.RunSync<ParquetReader>(() => ParquetReader.CreateAsync(sr.BaseStream, Configuration.ParquetOptions, leaveStreamOpen: Configuration.LeaveStreamOpen));
+            }
             if (Configuration != null)
             {
                 //if (Configuration.Culture != null)

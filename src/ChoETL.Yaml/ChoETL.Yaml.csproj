@@ -1,16 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\ChoETL.Build.props" />
+
   <PropertyGroup>
-      <TargetFrameworks>netstandard2.0;net9.0;net8.0;net7.0;net5.0;net6.0</TargetFrameworks>
+      <TargetFrameworks>$(ChoETLTargetFrameworks)</TargetFrameworks>
       <Authors>Cinchoo</Authors>
     <Company>Cinchoo Inc.</Company>
     <Description>Yaml extension to Cinchoo ETL framework</Description>
     <Copyright>Copyright Cinchoo Inc.</Copyright>
-    <PackageLicenseUrl>https://github.com/Cinchoo/ChoETL/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/Cinchoo/ChoETL</PackageProjectUrl>
-    <PackageIconUrl></PackageIconUrl>
     <RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
-    <RepositoryType>GitHub</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>ETL c# .NET CSV Xml JSON Flat Parquet Yaml</PackageTags>
     <PackageReleaseNotes>.NET Standard version</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

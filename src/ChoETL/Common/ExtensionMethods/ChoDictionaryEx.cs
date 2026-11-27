@@ -490,6 +490,50 @@ namespace ChoETL
             //    return Flatten(dict, (string)null, nestedKeySeparator, arrayIndexSeparator, arrayEndIndexSeparator, 
             //        ignoreDictionaryFieldPrefix, valueNamePrefix);
 
+            var flattened = FlattenWithRoot(dict, nestedKeySeparator, arrayIndexSeparator, arrayEndIndexSeparator,
+                ignoreDictionaryFieldPrefix, valueNamePrefix, ignoreRootDictionaryFieldPrefix);
+            if (!ignoreDictionaryFieldPrefix)
+                return flattened;
+
+            //Without prefixes, members of different nested objects can end up with the same key (e.g. root 'id'
+            //and 'owner.id'), which made every later ToDictionary fail with "An item with the same key has
+            //already been added" (#293). The first occurrence keeps the short key; later ones fall back to
+            //their prefixed key.
+            var shortKeys = flattened.ToArray();
+            var used = new HashSet<string>();
+            if (shortKeys.All(kvp => used.Add(kvp.Key)))
+                return shortKeys;
+
+            var longKeys = FlattenWithRoot(dict, nestedKeySeparator, arrayIndexSeparator, arrayEndIndexSeparator,
+                false, valueNamePrefix, ignoreRootDictionaryFieldPrefix).ToArray();
+            if (longKeys.Length != shortKeys.Length)
+                return shortKeys;
+
+            used.Clear();
+            var result = new List<KeyValuePair<string, object>>(shortKeys.Length);
+            for (int i = 0; i < shortKeys.Length; i++)
+            {
+                var key = shortKeys[i].Key;
+                if (!used.Add(key))
+                {
+                    key = longKeys[i].Key;
+                    if (!used.Add(key))
+                    {
+                        int n = 2;
+                        while (!used.Add($"{longKeys[i].Key}{n}"))
+                            n++;
+                        key = $"{longKeys[i].Key}{n}";
+                    }
+                }
+                result.Add(new KeyValuePair<string, object>(key, shortKeys[i].Value));
+            }
+            return result;
+        }
+
+        private static IEnumerable<KeyValuePair<string, object>> FlattenWithRoot(IDictionary<string, object> dict, char? nestedKeySeparator,
+            char? arrayIndexSeparator, char? arrayEndIndexSeparator, bool ignoreDictionaryFieldPrefix,
+            string valueNamePrefix, bool ignoreRootDictionaryFieldPrefix)
+        {
             if (dict is ChoDynamicObject && ((ChoDynamicObject)dict).DynamicObjectName != ChoDynamicObject.DefaultName)
                 return Flatten(dict, ignoreRootDictionaryFieldPrefix ? null : ((ChoDynamicObject)dict).DynamicObjectName, nestedKeySeparator, arrayIndexSeparator,
                     arrayEndIndexSeparator, ignoreDictionaryFieldPrefix, valueNamePrefix);

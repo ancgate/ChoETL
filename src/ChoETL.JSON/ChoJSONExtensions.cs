@@ -512,6 +512,55 @@ namespace ChoETL
 
          */
 
+        //FlattenByJsonPath: a path that selects an array ("$.Contact") means its items, like "$.Contact[*]".
+        private static IEnumerable<JToken> SelectFlattenByTokens(JObject root, string flattenByJsonPath)
+        {
+            foreach (var token in root.SelectTokens(flattenByJsonPath))
+            {
+                if (token is JArray array)
+                {
+                    foreach (var item in array.Children<JObject>())
+                        yield return item;
+                }
+                else
+                    yield return token;
+            }
+        }
+
+        //FlattenByJsonPath used to drop the root object's own fields (e.g. 'BrandId'), unlike FlattenByNodeName,
+        //which keeps them (#191). Root scalar fields are carried into every flattened record; a field of the
+        //selected object with the same name wins.
+        private static IEnumerable<JProperty> GetRootScalarProperties(JObject root, JToken selected)
+        {
+            if (ReferenceEquals(root, selected))
+                return null;
+
+            var selectedObject = selected as JObject;
+            var props = root.Properties()
+                .Where(p => p.Value is JValue)
+                .Where(p => selectedObject == null || !selectedObject.ContainsKey(p.Name))
+                .Select(p => new JProperty(p.Name, p.Value))
+                .ToArray();
+            return props.Length == 0 ? null : props;
+        }
+
+        private static void AddFlattenedProperties(JObject res, IEnumerable<JProperty> otherProperties, string parentNodeName,
+            string nestedKeySeparator, Func<string, string, string> nestedKeyResolver)
+        {
+            if (otherProperties == null)
+                return;
+
+            foreach (var prop in otherProperties)
+            {
+                if (!res.ContainsKey(prop.Name))
+                    res.Add(prop);
+                else if (nestedKeyResolver != null)
+                    res.Add(prop.Rename(nestedKeyResolver(parentNodeName, prop.Name)));
+                else if (!parentNodeName.IsNullOrWhiteSpace())
+                    res.Add(prop.Rename($"{parentNodeName}{nestedKeySeparator}{prop.Name}"));
+            }
+        }
+
         private static IEnumerable<JToken> GetFlattenedObjectsInternal(JToken token, IEnumerable<JProperty> otherProperties = null, string parentNodeName = null,
     string nestedKeySeparator = null, Func<string, string, string> nestedKeyResolver = null, bool useNestedKeyFormat = false,
     string arrayIndexSeparator = null,
@@ -582,10 +631,24 @@ namespace ChoETL
             }
             else if (token is JArray arr)
             {
-                foreach (var co in token.Children().SelectMany((c, index) => GetFlattenedObjects(c, otherProperties,
-                        useNestedKeyFormat ? (parentNodeName.IsNullOrWhiteSpace() ? $"{index}" : $"{parentNodeName}{nestedKeySeparator}{index}") : $"{index}",
-                        nestedKeySeparator, nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator, ignoreArrayIndex, index)))
-                    yield return co;
+                if (arr.Count > 0 && arr.Children().All(c => c is JValue))
+                {
+                    //An array of scalar values nested inside the array being flattened (e.g. "TimeRanges": [[0,24],[1,2]])
+                    //is one record holding that array, not one record per scalar (#206).
+                    var res = new JObject();
+                    AddFlattenedProperties(res, otherProperties, parentNodeName, nestedKeySeparator, nestedKeyResolver);
+                    var name = parentNodeName.IsNullOrWhiteSpace() ? "Value" : parentNodeName.ToSingular();
+                    if (!res.ContainsKey(name))
+                        res.Add(new JProperty(name, arr));
+                    yield return res;
+                }
+                else
+                {
+                    foreach (var co in token.Children().SelectMany((c, index) => GetFlattenedObjects(c, otherProperties,
+                            useNestedKeyFormat ? (parentNodeName.IsNullOrWhiteSpace() ? $"{index}" : $"{parentNodeName}{nestedKeySeparator}{index}") : $"{index}",
+                            nestedKeySeparator, nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator, ignoreArrayIndex, index)))
+                        yield return co;
+                }
             }
             else if (token is JValue && arrayIndex != null)
             {
@@ -735,12 +798,12 @@ namespace ChoETL
                     {
                         if (!flattenByNodeName.IsNullOrWhiteSpace())
                         {
-                            foreach (var co in obj.SelectTokens(flattenByJsonPath))
+                            foreach (var co in SelectFlattenByTokens(obj, flattenByJsonPath))
                             {
                                 children = co.Children<JProperty>().GroupBy(prop => prop.Value?.Type == JTokenType.Array
                                     && prop.Name == flattenByNodeName).ToDictionary(gr => gr.Key);
 
-                                foreach (var c in GetFlattenedChildObjects(children, null, null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
+                                foreach (var c in GetFlattenedChildObjects(children, GetRootScalarProperties(obj, co), null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
                 nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator == null ? String.Empty : arrayIndexSeparator.ToString(),
                 ignoreArrayIndex, null, flattenByNodeName, flattenByJsonPath))
                                     yield return c;
@@ -751,11 +814,11 @@ namespace ChoETL
                         }
                         else
                         {
-                            foreach (var co in obj.SelectTokens(flattenByJsonPath))
+                            foreach (var co in SelectFlattenByTokens(obj, flattenByJsonPath))
                             {
                                 children = co.Children<JProperty>().GroupBy(prop => prop.Value?.Type == JTokenType.Array).ToDictionary(gr => gr.Key);
 
-                                foreach (var c in GetFlattenedChildObjects(children, null, null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
+                                foreach (var c in GetFlattenedChildObjects(children, GetRootScalarProperties(obj, co), null, nestedKeySeparator == null ? String.Empty : nestedKeySeparator.ToString(),
                 nestedKeyResolver, useNestedKeyFormat, arrayIndexSeparator == null ? String.Empty : arrayIndexSeparator.ToString(),
                 ignoreArrayIndex, null, flattenByNodeName, flattenByJsonPath))
                                     yield return c;

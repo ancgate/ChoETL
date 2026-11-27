@@ -857,10 +857,13 @@ namespace ChoETL
             IDictionary<string, object> kvpDict = _kvpDict;
             if (kvpDict != null)
             {
-                if (name.StartsWith("Contains"))
+                //'Contains<Key>' is a convenience test for the existence of <Key>. It must not shadow a real
+                //member whose name starts with "Contains" (e.g. 'ContainsComments'), which used to read back
+                //as false for every record (#257).
+                if (name.StartsWith("Contains") && name.Length > 8
+                    && !kvpDict.ContainsKey(name) && !kvpDict.ContainsKey("{0}{1}".FormatString(_attributePrefix, name)))
                 {
-                    name = name.Substring(8);
-                    result = kvpDict.ContainsKey(name);
+                    result = kvpDict.ContainsKey(name.Substring(8));
                     return true;
                 }
 

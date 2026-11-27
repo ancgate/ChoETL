@@ -587,6 +587,13 @@ namespace ChoETL
 
         #endregion Fluent API
 
+        private static Type ToNullableType(Type type)
+        {
+            if (type == null || !type.IsValueType || Nullable.GetUnderlyingType(type) != null)
+                return type;
+            return typeof(Nullable<>).MakeGenericType(type);
+        }
+
         public void Write(IDataReader dr)
         {
             ChoGuard.ArgumentNotNull(dr, "DataReader");
@@ -600,13 +607,17 @@ namespace ChoETL
             {
                 string colName = null;
                 Type colType = null;
+                bool hasAllowDBNull = schemaTable.Columns.Contains("AllowDBNull");
                 foreach (DataRow row in schemaTable.Rows)
                 {
                     colName = row["ColumnName"].CastTo<string>();
                     colType = row["DataType"] as Type;
                     //if (!colType.IsSimple()) continue;
 
-                    Configuration.ParquetRecordFieldConfigurations.Add(new ChoParquetRecordFieldConfiguration(colName, ++ordinal) { FieldType = colType });
+                    //Nullable database columns must map to nullable parquet columns, otherwise NULLs
+                    //are written as default values (e.g. 0001-01-01 for DateTime) (#244, #292).
+                    bool allowDBNull = !hasAllowDBNull || !(row["AllowDBNull"] is bool b) || b;
+                    Configuration.ParquetRecordFieldConfigurations.Add(new ChoParquetRecordFieldConfiguration(colName, ++ordinal) { FieldType = allowDBNull ? ToNullableType(colType) : colType });
                 }
             }
 
@@ -618,7 +629,7 @@ namespace ChoETL
 
                 foreach (var fc in ordinals)
                 {
-                    expandoDic.Add(fc.Key, fc.Value == -1 ? null : dr[fc.Value]);
+                    expandoDic.Add(fc.Key, fc.Value == -1 || dr.IsDBNull(fc.Value) ? null : dr[fc.Value]);
                 }
 
                 if (Configuration.IsDynamicObjectInternal)
@@ -647,7 +658,7 @@ namespace ChoETL
                     colType = col.DataType;
                     //if (!colType.IsSimple()) continue;
 
-                    Configuration.ParquetRecordFieldConfigurations.Add(new ChoParquetRecordFieldConfiguration(colName, ++ordinal) { FieldType = colType });
+                    Configuration.ParquetRecordFieldConfigurations.Add(new ChoParquetRecordFieldConfiguration(colName, ++ordinal) { FieldType = col.AllowDBNull ? ToNullableType(colType) : colType });
                 }
             }
 
@@ -658,7 +669,8 @@ namespace ChoETL
 
                 foreach (var fc in Configuration.ParquetRecordFieldConfigurations)
                 {
-                    expandoDic.Add(fc.Name, row[fc.Name]);
+                    var value = row[fc.Name];
+                    expandoDic.Add(fc.Name, value == DBNull.Value ? null : value);
                 }
 
 

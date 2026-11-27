@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\ChoETL.Build.props" />
+
   <PropertyGroup>
-      <TargetFrameworks>net9.0;net8.0;net7.0;net5.0;net6.0</TargetFrameworks>
+      <TargetFrameworks>$(ChoETLEF6TargetFrameworks)</TargetFrameworks>
       <Version>1.0.0.5</Version>
     <Authors>Cinchoo</Authors>
     <Company>Cinchoo Inc.</Company>
@@ -11,9 +13,8 @@
     <RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
     <PackageReleaseNotes>.NET Standard version</PackageReleaseNotes>
     <PackageTags>ETL c# .NET CSV Xml JSON Flat Parquet Yaml</PackageTags>
-    <RepositoryType>GitHub</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageIconUrl></PackageIconUrl>
     <PackageIcon>cinchoo.png</PackageIcon>
   </PropertyGroup>
 
@@ -25,8 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Data.SQLite" Version="1.0.115" />
-    <PackageReference Include="System.Data.SQLite.EF6" Version="1.0.115" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
+    <PackageReference Include="System.Data.SQLite.EF6" Version="1.0.119" />
+    <PackageReference Include="EntityFramework" Version="6.5.2" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,34 @@
+name: build
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # SourceLink / repository commit metadata
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build (netstandard2.0, net6.0, net8.0, net10.0)
+        run: dotnet build src/ChoETL.NETStandard.sln -c Release
+
+      - name: Test (net8.0, net10.0)
+        run: dotnet test src/Test/ChoETL.Tests -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/ChoETL.NETStandard.sln -c Release --no-build -o artifacts
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: artifacts/*.*nupkg

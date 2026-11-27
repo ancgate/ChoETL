@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\ChoETL.Build.props" />
+
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>$(ChoETLTargetFrameworks)</TargetFrameworks>
     <Authors>Cinchoo</Authors>
     <Company>Cinchoo Inc.</Company>
     <Description>AVRO extension to Cinchoo ETL framework</Description>
     <Copyright>Copyright Cinchoo Inc.</Copyright>
-    <PackageLicenseUrl>https://github.com/Cinchoo/ChoETL/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/Cinchoo/ChoETL</PackageProjectUrl>
-    <PackageIconUrl></PackageIconUrl>
     <RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
-    <RepositoryType>GitHub</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>ETL c# .NET CSV Xml JSON Flat Avro</PackageTags>
     <PackageReleaseNotes>.NET Neutral version</PackageReleaseNotes>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Avro.Core" Version="0.1.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="$(ChoETLNewtonsoftJsonVersion)" />
   </ItemGroup>
 
   <ItemGroup>

@@ -214,6 +214,12 @@ namespace ChoETL
         }
 
         public bool EscapeUsingDoubleQuoteChar { get; set; }
+        /// <summary>
+        /// When quoting is on (QuoteAllFields / QuoteField), controls whether null values are written
+        /// as quoted empty strings (<c>""</c>, the default) or left empty, so that null and empty string
+        /// can be told apart in the output (#266).
+        /// </summary>
+        public bool QuoteNullValues { get; set; } = true;
         public bool JoinExtraFieldValues { get; set; }
         public bool IncludeFieldDelimiterWhileJoining { get; set; }
         public bool ThrowAndStopOnBadData { get; set; } = false;

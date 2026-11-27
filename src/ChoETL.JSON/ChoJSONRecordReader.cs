@@ -567,7 +567,24 @@ namespace ChoETL
 
         }
 
-        private IEnumerable<JObject> FlattenNodeIfOn(IEnumerable<JObject> jObjects)
+        private IEnumerable<JObject> FlattenNodeIfOn(JObject jo)
+        {
+            if (Configuration.FlattenNode)
+            {
+                foreach (var jo1 in jo.Flatten(Configuration.NestedKeySeparator, Configuration.ArrayIndexSeparator,
+                    Configuration.NestedKeyResolver, Configuration.UseNestedKeyFormat, Configuration.IgnoreArrayIndex,
+                    Configuration.FlattenByNodeName, Configuration.FlattenByJsonPath).OfType<JObject>())
+                    yield return (JObject)jo1;
+            }
+            else
+                yield return jo;
+        }
+
+        //The source is forward-only (it streams from a JsonReader), so the field scan and the main loop
+        //share ONE enumerator: records buffered by the scan are replayed first, then reading continues
+        //where the scan stopped. Enumerating the source twice, and reading one record past the scan
+        //limit, silently dropped records whenever MaxScanRows was set (found via #206).
+        private IEnumerable<JObject> FlattenNodeIfOn(IEnumerator<JObject> recEnum)
         {
             var arr = _recBuffer.Value.ToArray();
             _recBuffer.Value.Clear();
@@ -575,19 +592,9 @@ namespace ChoETL
             foreach (var rec in arr)
                 yield return rec;
 
-            if (Configuration.FlattenNode)
+            while (recEnum.MoveNext())
             {
-                foreach (var jo in jObjects)
-                {
-                    foreach (var jo1 in jo.Flatten(Configuration.NestedKeySeparator, Configuration.ArrayIndexSeparator,
-                        Configuration.NestedKeyResolver, Configuration.UseNestedKeyFormat, Configuration.IgnoreArrayIndex,
-                        Configuration.FlattenByNodeName, Configuration.FlattenByJsonPath).OfType<JObject>())
-                        yield return (JObject)jo1;
-                }
-            }
-            else
-            {
-                foreach (var jo in jObjects)
+                foreach (var jo in FlattenNodeIfOn(recEnum.Current))
                     yield return jo;
             }
         }
@@ -618,18 +625,21 @@ namespace ChoETL
                     Configuration.JsonSerializerSettings.NullValueHandling = NullValueHandling.Ignore;
             }
 
+            var recEnum = jObjects.GetEnumerator();
             if (!Configuration.SupportsMultiRecordTypes && Configuration.IsDynamicObjectInternal && !Configuration.UseJSONSerialization)
             {
                 if (Configuration.AutoDiscoverFieldTypes && Configuration.MaxScanRows > 0)
                 {
                     List<string> fns = new List<string>();
                     int counter1 = 0;
-                    foreach (var obj in FlattenNodeIfOn(jObjects))
+                    //Scan whole source objects (all of their flattened rows) and never read past the limit.
+                    while (counter1 < Configuration.MaxScanRows && recEnum.MoveNext())
                     {
-                        if (counter1 > Configuration.MaxScanRows)
-                            break;
-                        fns = fns.Union(obj.Properties().Select(p => p.Name).ToList()).ToList();
-                        _recBuffer.Value.Add(obj);
+                        foreach (var obj in FlattenNodeIfOn(recEnum.Current))
+                        {
+                            fns = fns.Union(obj.Properties().Select(p => p.Name).ToList()).ToList();
+                            _recBuffer.Value.Add(obj);
+                        }
 
                         counter1++;
                     }
@@ -638,7 +648,7 @@ namespace ChoETL
                 }
             }
 
-            foreach (var obj in FlattenNodeIfOn(jObjects))
+            foreach (var obj in FlattenNodeIfOn(recEnum))
             {
                 if (RecordType == typeof(JObject))
                 {

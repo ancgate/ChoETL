@@ -5,13 +5,7 @@ using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
-#if NET8_0_OR_GREATER
 using Microsoft.Data.SqlClient;
-#elif _ALL_NET_
-using Microsoft.Data.SqlClient;
-#else
-using System.Data.SqlClient;
-#endif
 using System.Dynamic;
 using System.Linq;
 using System.Text;

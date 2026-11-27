@@ -468,8 +468,26 @@ namespace ChoETL
                 }
 
                 if (Configuration.UseNestedKeyFormat)
-                    fieldNames = record.Flatten(Configuration.NestedKeySeparator, Configuration.ArrayIndexSeparator, Configuration.ArrayEndIndexSeparator, Configuration.IgnoreDictionaryFieldPrefix)
-                        .ToDictionary(valueNamePrefix: Configuration.ArrayValueNamePrefix).Keys.ToArray();
+                {
+                    var names = record.Flatten(Configuration.NestedKeySeparator, Configuration.ArrayIndexSeparator, Configuration.ArrayEndIndexSeparator, Configuration.IgnoreDictionaryFieldPrefix)
+                        .ToDictionary(valueNamePrefix: Configuration.ArrayValueNamePrefix).Keys.ToList();
+
+                    //Merging keeps only one shape per member (e.g. 'value' as an array in one record and a scalar
+                    //in another), so add any flattened keys of the scanned records that the merge lost,
+                    //otherwise their values are silently dropped from the output (#325).
+                    var known = new HashSet<string>(names);
+                    //Null values are skipped: they carry no data and every key is already part of the merge.
+                    foreach (var r in records.Select(r => r.ToDynamicObject() as IDictionary<string, Object>).Where(r => r != null))
+                    {
+                        foreach (var kvp in r.Flatten(Configuration.NestedKeySeparator, Configuration.ArrayIndexSeparator, Configuration.ArrayEndIndexSeparator, Configuration.IgnoreDictionaryFieldPrefix)
+                            .ToDictionary(valueNamePrefix: Configuration.ArrayValueNamePrefix))
+                        {
+                            if (kvp.Value != null && known.Add(kvp.Key))
+                                names.Add(kvp.Key);
+                        }
+                    }
+                    fieldNames = names.ToArray();
+                }
                 else
                     fieldNames = record.Keys.ToArray();
             }
@@ -568,6 +586,7 @@ namespace ChoETL
                 fieldConfig = kvp.Value;
                 fieldValue = null;
                 fieldText = String.Empty;
+                bool isNullFieldValue = false;
 
                 if (Configuration.PIDictInternal != null)
                 {
@@ -709,6 +728,7 @@ namespace ChoETL
                     if (!RaiseBeforeRecordFieldWrite(rec, index, kvp.Key, ref fieldValue))
                         return false;
 
+                    isNullFieldValue = fieldValue == null || fieldValue == DBNull.Value;
                     if (kvp.Value.SourceType == null && !(fieldValue is IList))
                         kvp.Value.SourceType = typeof(string);
                     if (fieldConfig.ValueSelector == null)
@@ -835,6 +855,8 @@ namespace ChoETL
                 }
 
                 quoteField = kvp.Value.QuoteField;
+                if (isNullFieldValue && !Configuration.QuoteNullValues && kvp.Value.NullValue.IsNullOrEmpty())
+                    quoteField = false;
                 if (firstColumn)
                 {
                     msg.Append(NormalizeFieldValue(kvp.Key, fieldText, kvp.Value.Size, kvp.Value.Truncate, quoteField,

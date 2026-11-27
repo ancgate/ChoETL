@@ -1,18 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\ChoETL.Build.props" />
+
   <PropertyGroup>
-      <TargetFrameworks>netstandard2.0;net9.0;net8.0;net7.0;net5.0;net6.0</TargetFrameworks>
+      <TargetFrameworks>$(ChoETLTargetFrameworks)</TargetFrameworks>
       <AssemblyName>ChoETL.JSON.Core</AssemblyName>
     <RootNamespace>ChoETL.JSON</RootNamespace>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <Description>JSON extension to Cinchoo ETL framework</Description>
     <Copyright>Copyright Cinchoo Inc.</Copyright>
-    <PackageLicenseUrl>https://github.com/Cinchoo/ChoETL/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/Cinchoo/ChoETL</PackageProjectUrl>
-    <PackageIconUrl></PackageIconUrl>
     <RepositoryUrl>https://github.com/Cinchoo/ChoETL</RepositoryUrl>
-    <RepositoryType>GitHub</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <PackageTags>ETL c# .NET CSV Xml JSON Flat</PackageTags>
     <PackageReleaseNotes>.NET Standard version</PackageReleaseNotes>
     <PackageId>ChoETL.JSON.NETStandard</PackageId>
@@ -23,10 +23,6 @@
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>ChoETL.JSON.NETStandard.snk</AssemblyOriginatorKeyFile>
     <PackageIcon>cinchoo.png</PackageIcon>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>TRACE;DEBUG;NETSTANDARD2_0,_TEST_</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -62,7 +58,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="$(ChoETLNewtonsoftJsonVersion)" />
   </ItemGroup>
   
   <ItemGroup>
